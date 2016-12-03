@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
+
+#define SIZE 256
 
 typedef struct {
   float Position[2];
@@ -16,9 +19,15 @@ typedef struct {
 // (-1, -1) (1, -1)
 
 Vertex vertexes[] = {
-  {{1, -1}, {0.99999, 0}},
-  {{1, 1},  {0.99999, 0.99999}},
+  {{1, 1}, {0.99999, 0}},
+  {{1, -1},  {0.99999, 0.99999}},
+  {{-1, -1}, {0, 0.99999}},
   {{-1, 1}, {0, 0.99999}}
+};
+
+GLuint indices[] = {
+    0, 1, 3,   // First Triangle
+    1, 2, 3    // Second Triangle
 };
 
 static const char* vertex_shader_text =
@@ -93,8 +102,72 @@ unsigned char image[] = {
   255, 0, 255, 255
 };
 
-int main(void)
+//represents a single pixel object
+typedef struct RGB {
+  unsigned char r, g, b;
+}RGBPix;
+
+//this struct is used to store the entire image data, along with the width and height
+typedef struct Image {
+  int width, height;
+  unsigned char *data;
+}PPMImage;
+
+int main(int argc, char *argv[])
 {
+
+  if(argc < 2 || argc > 2) {
+    perror("Usage: ./ezview image-source.ppm \n");
+  }
+
+  if(strstr(argv[1], ".ppm") == NULL) {
+    perror("Please provide a .ppm file tp be read");
+    return 0;
+  }
+  printf("here\n" );
+  FILE *inFile = fopen(argv[1], "rb");
+
+
+  //buffer used for the comments mainly
+  char buff[SIZE], *fh;
+
+  PPMImage im;
+
+  int read;
+  unsigned int maxColors;
+
+
+  fh = (char *)malloc(sizeof(char) * SIZE);
+  fh = fgets(buff, SIZE, inFile);             //Make sure we are reading the right type of file
+  if ( (fh == NULL) || ( strncmp(buff, "P6\n", 3) != 0 ) ) perror("Please provide a P6 .ppm file for conversion\n");
+
+  //get rid of comments
+  do
+        {
+           fh = fgets(buff, SIZE, inFile);      //write the comments into the out file
+           if ( fh == NULL ) return 1;
+        } while ( strncmp(buff, "#", 1) == 0 );
+
+  //read in the width and height
+  read = sscanf(buff, "%u %u", &im.width, &im.height);
+
+  printf("here\n" );
+  //throw error if the width and height aren't in the file
+  if(read < 2) {
+    perror("File Unreadable. Please check the file format\n");
+    return 1;
+  }
+  im.data = (unsigned char *)malloc(sizeof(char)* 3 * im.width * im.height);
+
+  read = fscanf(inFile, "%u", &maxColors);
+  //check that the right color format is used
+  if(maxColors != 255 || read != 1) {
+    perror("Please provide an 24-bit color file");
+    return 1;
+  }
+
+  fread(im.data, sizeof(char)*3, im.width * im.height, inFile);
+
     GLFWwindow* window;
     GLuint vertex_buffer, vertex_shader, fragment_shader, program;
     GLint mvp_location, vpos_location, vcol_location;
@@ -122,9 +195,20 @@ int main(void)
 
     // NOTE: OpenGL error checks have been omitted for brevity
 
+    GLuint EBO;
+    glGenBuffers(1, &EBO);
+
+    // GLuint VAO;
+    // glGenVertexArrays(1, &VAO);
+    // glBindVertexArray(VAO);
+
     glGenBuffers(1, &vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertexes), vertexes, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+    sizeof(indices), indices, GL_STATIC_DRAW);
 
     vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
@@ -197,13 +281,13 @@ int main(void)
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4x4_identity(m);
-        mat4x4_rotate_Z(m, m, (float) glfwGetTime());
+        //mat4x4_rotate_Z(m, m, (float) glfwGetTime());
         mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
         mat4x4_mul(mvp, p, m);
 
         glUseProgram(program);
         glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
