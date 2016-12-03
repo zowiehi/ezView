@@ -19,15 +19,15 @@ typedef struct {
 // (-1, -1) (1, -1)
 
 Vertex vertexes[] = {
-  {{1, 1}, {0.99999, 0}},
-  {{1, -1},  {0.99999, 0.99999}},
-  {{-1, -1}, {0, 0.99999}},
+  {{1, 1}, {0.99999, 0.99999}},
+  {{1, -1},  {0.99999, 0}},
+  {{-1, -1}, {0, 0}},
   {{-1, 1}, {0, 0.99999}}
 };
 
 GLuint indices[] = {
-    0, 1, 3,   // First Triangle
-    1, 2, 3    // Second Triangle
+    1, 0, 2,   // First Triangle
+    0, 3, 2    // Second Triangle
 };
 
 static const char* vertex_shader_text =
@@ -102,16 +102,58 @@ unsigned char image[] = {
   255, 0, 255, 255
 };
 
-//represents a single pixel object
-typedef struct RGB {
-  unsigned char r, g, b;
-}RGBPix;
 
 //this struct is used to store the entire image data, along with the width and height
 typedef struct Image {
   int width, height;
   unsigned char *data;
 }PPMImage;
+
+unsigned char* loadImage(FILE* inFile, int* width, int* height){
+  //buffer used for the comments mainly
+  char buff[SIZE], *fh;
+
+  int w, h;
+  unsigned char* image;
+  int read;
+  unsigned int maxColors;
+
+
+  fh = (char *)malloc(sizeof(char) * SIZE);
+  fh = fgets(buff, SIZE, inFile);             //Make sure we are reading the right type of file
+  if ( (fh == NULL) || ( strncmp(buff, "P6\n", 3) != 0 ) ) perror("Please provide a P6 .ppm file for conversion\n");
+
+  //get rid of comments
+  do
+        {
+           fh = fgets(buff, SIZE, inFile);      //write the comments into the out file
+           if ( fh == NULL ) return NULL;
+        } while ( strncmp(buff, "#", 1) == 0 );
+
+  //read in the width and height
+  read = sscanf(buff, "%u %u", &w, &h);
+
+  //throw error if the width and height aren't in the file
+  if(read < 2) {
+    perror("File Unreadable. Please check the file format\n");
+    return NULL;
+  }
+  image = (unsigned char *)malloc(sizeof(char)* 3 * w * h);
+
+  read = fscanf(inFile, "%u", &maxColors);
+  //check that the right color format is used
+  if(maxColors != 255 || read != 1) {
+    perror("Please provide an 24-bit color file");
+    return NULL;
+  }
+
+  fread(image, sizeof(unsigned char), w * h * 3, inFile);
+
+  *width = w;
+  *height = h;
+  return image;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -127,46 +169,9 @@ int main(int argc, char *argv[])
   printf("here\n" );
   FILE *inFile = fopen(argv[1], "rb");
 
+  GLint image_width, image_height;
 
-  //buffer used for the comments mainly
-  char buff[SIZE], *fh;
-
-  PPMImage im;
-
-  int read;
-  unsigned int maxColors;
-
-
-  fh = (char *)malloc(sizeof(char) * SIZE);
-  fh = fgets(buff, SIZE, inFile);             //Make sure we are reading the right type of file
-  if ( (fh == NULL) || ( strncmp(buff, "P6\n", 3) != 0 ) ) perror("Please provide a P6 .ppm file for conversion\n");
-
-  //get rid of comments
-  do
-        {
-           fh = fgets(buff, SIZE, inFile);      //write the comments into the out file
-           if ( fh == NULL ) return 1;
-        } while ( strncmp(buff, "#", 1) == 0 );
-
-  //read in the width and height
-  read = sscanf(buff, "%u %u", &im.width, &im.height);
-
-  printf("here\n" );
-  //throw error if the width and height aren't in the file
-  if(read < 2) {
-    perror("File Unreadable. Please check the file format\n");
-    return 1;
-  }
-  im.data = (unsigned char *)malloc(sizeof(char)* 3 * im.width * im.height);
-
-  read = fscanf(inFile, "%u", &maxColors);
-  //check that the right color format is used
-  if(maxColors != 255 || read != 1) {
-    perror("Please provide an 24-bit color file");
-    return 1;
-  }
-
-  fread(im.data, sizeof(char)*3, im.width * im.height, inFile);
+  GLubyte* image = (GLubyte*) loadImage(inFile, &image_width, &image_height);
 
     GLFWwindow* window;
     GLuint vertex_buffer, vertex_shader, fragment_shader, program;
@@ -252,8 +257,6 @@ int main(int argc, char *argv[])
                           sizeof(Vertex),
 			  (void*) (sizeof(float) * 2));
 
-    int image_width = 4;
-    int image_height = 4;
 
     GLuint texID;
     glGenTextures(1, &texID);
@@ -261,7 +264,7 @@ int main(int argc, char *argv[])
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGB,
 		 GL_UNSIGNED_BYTE, image);
 
     glActiveTexture(GL_TEXTURE0);
