@@ -10,6 +10,8 @@
 
 #define SIZE 256
 
+
+
 typedef struct {
   float Position[2];
   float TexCoord[2];
@@ -19,10 +21,10 @@ typedef struct {
 // (-1, -1) (1, -1)
 
 Vertex vertexes[] = {
-  {{1, -1},  {0.99999, 0}},
-  {{1, 1}, {0.99999, 0.99999}},
-  {{-1, -1}, {0, 0}},
-  {{-1, 1}, {0, 0.99999}}
+  {{1, -1},  {0.99999, 0.99999}},
+  {{1, 1}, {0.99999, 0}},
+  {{-1, -1}, {0, 0.99999}},
+  {{-1, 1}, {0, 0}}
 };
 
 GLuint indices[] = {
@@ -110,14 +112,12 @@ typedef struct Image {
 }PPMImage;
 
 void reverse(unsigned char* ar, int n){
-  char r, g, b;
-  for(int i = 0; i <= n; i+= 3){
-    r = ar[i];
-    g = ar[i+1];
-    b = ar[i+2];
-    ar[i] = g;
-    ar[i+1] = b;
-    ar[i+2] = r;
+  char c;
+  for(int i = 0; i < n; i++){
+    c = ar[i];
+    ar[i] = ar[n];
+    ar[n] = c;
+    n--;
   }
   return;
 }
@@ -161,10 +161,12 @@ unsigned char* loadImage(FILE* inFile, int* width, int* height){
     perror("Please provide an 24-bit color file");
     return NULL;
   }
+
+  fseek(inFile, 1, SEEK_CUR);
   image = (unsigned char *)malloc(sizeof(char)* 3 * w * h);
   fread(image, sizeof(unsigned char), w * h * 3, inFile);
 
-  reverse(image, w * h * 3);
+  //reverse(image, w * h * 3);
 
   *width = w;
   *height = h;
@@ -202,7 +204,7 @@ int main(int argc, char *argv[])
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    window = glfwCreateWindow(image_width, image_height, "Simple example", NULL, NULL);
+    window = glfwCreateWindow(600, 480, "Simple example", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -302,12 +304,13 @@ int main(int argc, char *argv[])
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4x4_identity(m);
-        //mat4x4_rotate_Z(m, m, (float) glfwGetTime());
+        //mat4x4_rotate_Z(m, m, M_PI);
         mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
         mat4x4_mul(mvp, p, m);
 
         glUseProgram(program);
         glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
+        glRotatef(0.5,0.0,0.0,1.0);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
