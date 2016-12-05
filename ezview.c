@@ -19,15 +19,15 @@ typedef struct {
 // (-1, -1) (1, -1)
 
 Vertex vertexes[] = {
-  {{1, 1}, {0.99999, 0.99999}},
   {{1, -1},  {0.99999, 0}},
+  {{1, 1}, {0.99999, 0.99999}},
   {{-1, -1}, {0, 0}},
   {{-1, 1}, {0, 0.99999}}
 };
 
 GLuint indices[] = {
-    1, 0, 2,   // First Triangle
-    0, 3, 2    // Second Triangle
+    0, 1, 3,   // First Triangle
+    2, 0, 3     // Second Triangle
 };
 
 static const char* vertex_shader_text =
@@ -80,27 +80,27 @@ void glCompileShaderOrDie(GLuint shader) {
 }
 
 // 4 x 4 image..
-unsigned char image[] = {
-  255, 0, 0, 255,
-  255, 0, 0, 255,
-  255, 0, 0, 255,
-  255, 0, 0, 255,
-
-  0, 255, 0, 255,
-  0, 255, 0, 255,
-  0, 255, 0, 255,
-  0, 255, 0, 255,
-
-  0, 0, 255, 255,
-  0, 0, 255, 255,
-  0, 0, 255, 255,
-  0, 0, 255, 255,
-
-  255, 0, 255, 255,
-  255, 0, 255, 255,
-  255, 0, 255, 255,
-  255, 0, 255, 255
-};
+// unsigned char image[] = {
+//   255, 0, 0, 255,
+//   255, 0, 0, 255,
+//   255, 0, 0, 255,
+//   255, 0, 0, 255,
+//
+//   0, 255, 0, 255,
+//   0, 255, 0, 255,
+//   0, 255, 0, 255,
+//   0, 255, 0, 255,
+//
+//   0, 0, 255, 255,
+//   0, 0, 255, 255,
+//   0, 0, 255, 255,
+//   0, 0, 255, 255,
+//
+//   255, 0, 255, 255,
+//   255, 0, 255, 255,
+//   255, 0, 255, 255,
+//   255, 0, 255, 255
+// };
 
 
 //this struct is used to store the entire image data, along with the width and height
@@ -108,6 +108,21 @@ typedef struct Image {
   int width, height;
   unsigned char *data;
 }PPMImage;
+
+void reverse(unsigned char* ar, int n){
+  char r, g, b;
+  for(int i = 0; i <= n; i+= 3){
+    r = ar[i];
+    g = ar[i+1];
+    b = ar[i+2];
+    ar[i] = g;
+    ar[i+1] = b;
+    ar[i+2] = r;
+  }
+  return;
+}
+
+
 
 unsigned char* loadImage(FILE* inFile, int* width, int* height){
   //buffer used for the comments mainly
@@ -138,16 +153,18 @@ unsigned char* loadImage(FILE* inFile, int* width, int* height){
     perror("File Unreadable. Please check the file format\n");
     return NULL;
   }
-  image = (unsigned char *)malloc(sizeof(char)* 3 * w * h);
 
   read = fscanf(inFile, "%u", &maxColors);
+  printf("%d\n", maxColors);
   //check that the right color format is used
   if(maxColors != 255 || read != 1) {
     perror("Please provide an 24-bit color file");
     return NULL;
   }
-
+  image = (unsigned char *)malloc(sizeof(char)* 3 * w * h);
   fread(image, sizeof(unsigned char), w * h * 3, inFile);
+
+  reverse(image, w * h * 3);
 
   *width = w;
   *height = h;
@@ -185,7 +202,7 @@ int main(int argc, char *argv[])
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
+    window = glfwCreateWindow(image_width, image_height, "Simple example", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -260,13 +277,14 @@ int main(int argc, char *argv[])
 
     GLuint texID;
     glGenTextures(1, &texID);
+    glEnable( GL_TEXTURE_2D );
     glBindTexture(GL_TEXTURE_2D, texID);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGB,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image_width, image_height, 0, GL_RGB,
 		 GL_UNSIGNED_BYTE, image);
-
+    glGenerateMipmap(GL_TEXTURE_2D);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texID);
     glUniform1i(tex_location, 0);
