@@ -11,6 +11,9 @@
 #define SIZE 256
 
 
+float angle = 0;
+float scale = 1;
+
 
 typedef struct {
   float Position[2];
@@ -60,6 +63,16 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+
+    if(key == GLFW_KEY_R && action == GLFW_PRESS){
+      angle += 1;
+      if(angle >= 4) angle = 0;
+    }
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+  scale += yoffset;
 }
 
 void glCompileShaderOrDie(GLuint shader) {
@@ -185,12 +198,14 @@ int main(int argc, char *argv[])
     perror("Please provide a .ppm file tp be read");
     return 0;
   }
-  printf("here\n" );
+
   FILE *inFile = fopen(argv[1], "rb");
 
   GLint image_width, image_height;
 
   GLubyte* image = (GLubyte*) loadImage(inFile, &image_width, &image_height);
+
+
 
     GLFWwindow* window;
     GLuint vertex_buffer, vertex_shader, fragment_shader, program;
@@ -204,7 +219,7 @@ int main(int argc, char *argv[])
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    window = glfwCreateWindow(600, 480, "Simple example", NULL, NULL);
+    window = glfwCreateWindow(image_width, image_height, "Simple example", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -212,6 +227,7 @@ int main(int argc, char *argv[])
     }
 
     glfwSetKeyCallback(window, key_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     glfwMakeContextCurrent(window);
     // gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
@@ -281,6 +297,8 @@ int main(int argc, char *argv[])
     glGenTextures(1, &texID);
     glEnable( GL_TEXTURE_2D );
     glBindTexture(GL_TEXTURE_2D, texID);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -304,13 +322,15 @@ int main(int argc, char *argv[])
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4x4_identity(m);
-        //mat4x4_rotate_Z(m, m, M_PI);
-        mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+        mat4x4_rotate_Z(m, m, (angle * M_PI/2));
+        
+        mat4x4_identity(p);
+        //mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
         mat4x4_mul(mvp, p, m);
 
         glUseProgram(program);
         glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
-        glRotatef(0.5,0.0,0.0,1.0);
+
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
