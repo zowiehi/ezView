@@ -13,6 +13,9 @@
 
 float angle = 0;
 float scale = 1;
+float shear = 0;
+float xTran = 0;
+float yTran = 0;
 
 
 typedef struct {
@@ -34,6 +37,8 @@ GLuint indices[] = {
     0, 1, 3,   // First Triangle
     2, 0, 3     // Second Triangle
 };
+
+
 
 static const char* vertex_shader_text =
 "uniform mat4 MVP;\n"
@@ -64,15 +69,39 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
 
+      if (key == GLFW_KEY_S && action == GLFW_PRESS)
+        shear += .05;
+
+      if (key == GLFW_KEY_A && action == GLFW_PRESS)
+        shear -= .05;
+
+      if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
+        xTran += .05;
+
+      if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+        xTran -= .05;
+
+      if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
+        yTran += .05;
+
+      if (key == GLFW_KEY_UP && action == GLFW_PRESS)
+        yTran -= .05;
+
     if(key == GLFW_KEY_R && action == GLFW_PRESS){
-      angle += 1;
+      angle -= 1;
       if(angle >= 4) angle = 0;
+    }
+
+    if(key == GLFW_KEY_E && action == GLFW_PRESS ){
+      angle += 1;
+      if(angle <= -4) angle = 0;
     }
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-  scale += yoffset;
+  scale += (float)yoffset / 100;
+  if(scale <= 0) scale = 0;
 }
 
 void glCompileShaderOrDie(GLuint shader) {
@@ -93,36 +122,24 @@ void glCompileShaderOrDie(GLuint shader) {
     exit(1);
   }
 }
-
-// 4 x 4 image..
-// unsigned char image[] = {
-//   255, 0, 0, 255,
-//   255, 0, 0, 255,
-//   255, 0, 0, 255,
-//   255, 0, 0, 255,
-//
-//   0, 255, 0, 255,
-//   0, 255, 0, 255,
-//   0, 255, 0, 255,
-//   0, 255, 0, 255,
-//
-//   0, 0, 255, 255,
-//   0, 0, 255, 255,
-//   0, 0, 255, 255,
-//   0, 0, 255, 255,
-//
-//   255, 0, 255, 255,
-//   255, 0, 255, 255,
-//   255, 0, 255, 255,
-//   255, 0, 255, 255
-// };
-
-
-//this struct is used to store the entire image data, along with the width and height
-typedef struct Image {
-  int width, height;
-  unsigned char *data;
-}PPMImage;
+void glLinkProgramOrDie(GLuint program) {
+  GLint linked;
+  glLinkProgram(program);
+  glGetProgramiv(program,
+		GL_LINK_STATUS,
+		&linked);
+  if (!linked) {
+    GLint infoLen = 0;
+    glGetProgramiv(program,
+		  GL_INFO_LOG_LENGTH,
+		  &infoLen);
+    char* info = malloc(infoLen+1);
+    GLint done;
+    glGetProgramInfoLog(program, infoLen, &done, info);
+    printf("Unable to link program: %s\n", info);
+    exit(1);
+  }
+}
 
 void reverse(unsigned char* ar, int n){
   char c;
@@ -134,8 +151,6 @@ void reverse(unsigned char* ar, int n){
   }
   return;
 }
-
-
 
 unsigned char* loadImage(FILE* inFile, int* width, int* height){
   //buffer used for the comments mainly
@@ -185,7 +200,6 @@ unsigned char* loadImage(FILE* inFile, int* width, int* height){
   *height = h;
   return image;
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -261,8 +275,8 @@ int main(int argc, char *argv[])
     program = glCreateProgram();
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
-    glLinkProgram(program);
-    // more error checking! glLinkProgramOrDie!
+    glLinkProgramOrDie(program);
+
 
     mvp_location = glGetUniformLocation(program, "MVP");
     assert(mvp_location != -1);
@@ -313,7 +327,28 @@ int main(int argc, char *argv[])
     {
         float ratio;
         int width, height;
-        mat4x4 m, p, mvp;
+        mat4x4 m, p, mvp, s;
+
+        mat4x4 sh = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            shear, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+
+        mat4x4 zoom = {
+            scale, 0.0f, 0.0f, 0.0f,
+            0.0, scale, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+        mat4x4 tran = {
+            1.0f, 0.0f, 0.0f, xTran,
+            0.0, 1.0f, 0.0f, yTran,
+            0.0f, 0.0f, 1.0f, 1.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+
 
         glfwGetFramebufferSize(window, &width, &height);
         ratio = width / (float) height;
@@ -322,11 +357,17 @@ int main(int argc, char *argv[])
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4x4_identity(m);
+        mat4x4_identity(s);
+        mat4x4_mul(m, sh, m);
+        mat4x4_mul(m, zoom, m);
+        mat4x4_translate_in_place(m, xTran, yTran, 1.0);
+        //mat4x4_add(m, tran, m);
         mat4x4_rotate_Z(m, m, (angle * M_PI/2));
-        
+        //mat4x4_scale(s,s, scale);
+
         mat4x4_identity(p);
         //mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
-        mat4x4_mul(mvp, p, m);
+        mat4x4_mul(mvp, s, m);
 
         glUseProgram(program);
         glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
